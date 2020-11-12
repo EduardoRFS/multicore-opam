@@ -1,0 +1,1513 @@
+From 6f46a97a362a9fbe8e76215bc3ac8b86ce3955c1 Mon Sep 17 00:00:00 2001
+From: Thomas Refis <thomas.refis@gmail.com>
+Date: Tue, 6 Oct 2020 17:53:52 +0200
+Subject: [PATCH 02/10] fix build on all versions
+
+---
+ src/kernel/mocaml.ml             |  2 +-
+ src/kernel/mtyper.ml             |  2 +-
+ src/ocaml/typing/402/btype.ml    |  6 +++---
+ src/ocaml/typing/402/env.ml      | 14 +++++++-------
+ src/ocaml/typing/403/btype.ml    |  6 +++---
+ src/ocaml/typing/403/env.ml      | 22 +++++++++++-----------
+ src/ocaml/typing/404/btype.ml    |  6 +++---
+ src/ocaml/typing/404/env.ml      | 30 +++++++++++++++---------------
+ src/ocaml/typing/405/btype.ml    |  6 +++---
+ src/ocaml/typing/405/env.ml      | 30 +++++++++++++++---------------
+ src/ocaml/typing/406/btype.ml    |  6 +++---
+ src/ocaml/typing/406/env.ml      | 30 +++++++++++++++---------------
+ src/ocaml/typing/407/btype.ml    |  6 +++---
+ src/ocaml/typing/407/env.ml      | 30 +++++++++++++++---------------
+ src/ocaml/typing/407_0/btype.ml  |  6 +++---
+ src/ocaml/typing/407_0/env.ml    | 30 +++++++++++++++---------------
+ src/ocaml/typing/408/btype.ml    |  6 +++---
+ src/ocaml/typing/408/env.ml      | 30 +++++++++++++++---------------
+ src/ocaml/typing/409/btype.ml    |  6 +++---
+ src/ocaml/typing/409/env.ml      | 18 +++++++++---------
+ src/ocaml/typing/410/btype.ml    |  6 +++---
+ src/ocaml/typing/410/env.ml      | 16 ++++++++--------
+ src/ocaml/typing/411/btype.ml    |  6 +++---
+ src/ocaml/typing/411/env.ml      | 16 ++++++++--------
+ src/ocaml/utils/402/config.ml    |  2 +-
+ src/ocaml/utils/403/config.ml    |  2 +-
+ src/ocaml/utils/404/config.ml    |  2 +-
+ src/ocaml/utils/405/config.ml    |  2 +-
+ src/ocaml/utils/406/config.ml    |  2 +-
+ src/ocaml/utils/407/config.ml    |  2 +-
+ src/ocaml/utils/408/load_path.ml |  6 +++---
+ src/ocaml/utils/409/load_path.ml |  6 +++---
+ src/ocaml/utils/410/load_path.ml |  6 +++---
+ src/ocaml/utils/411/load_path.ml |  6 +++---
+ src/utils/local_store.ml         | 21 +++++++++++++++------
+ 35 files changed, 201 insertions(+), 192 deletions(-)
+
+diff --git a/src/kernel/mocaml.ml b/src/kernel/mocaml.ml
+index 9c49f338..fbe6b420 100644
+--- a/src/kernel/mocaml.ml
++++ b/src/kernel/mocaml.ml
+@@ -5,7 +5,7 @@ open Local_store.Compiler
+ 
+ type typer_state = Local_store.scope
+ 
+-let current_state = srefk None
++let current_state = s_ref None
+ 
+ let new_state () =
+   let scope = Local_store.fresh compiler_state in
+diff --git a/src/kernel/mtyper.ml b/src/kernel/mtyper.ml
+index c5ae4ada..41ca11f0 100644
+--- a/src/kernel/mtyper.ml
++++ b/src/kernel/mtyper.ml
+@@ -18,7 +18,7 @@ type typedtree = [
+   | `Implementation of Typedtree.structure
+ ]
+ 
+-let cache = srefk None
++let cache = s_ref None
+ 
+ let fresh_env config =
+   let env0 = Typer_raw.fresh_env () in
+diff --git a/src/ocaml/typing/402/btype.ml b/src/ocaml/typing/402/btype.ml
+index 18170903..e6bfab42 100644
+--- a/src/ocaml/typing/402/btype.ml
++++ b/src/ocaml/typing/402/btype.ml
+@@ -602,9 +602,9 @@ type snapshot = changes ref * int
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
+-let last_snapshot = sref (fun () -> 0)
+-let linked_variables = sref (fun () -> 0)
++let trail = s_table Weak.create 1
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+diff --git a/src/ocaml/typing/402/env.ml b/src/ocaml/typing/402/env.ml
+index 90cc23a0..b7b65136 100644
+--- a/src/ocaml/typing/402/env.ml
++++ b/src/ocaml/typing/402/env.ml
+@@ -28,14 +28,14 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -78,9 +78,9 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+-let prefixed_sg = sref (fun () -> Hashtbl.create 113)
++let prefixed_sg = s_table Hashtbl.create 113
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -296,7 +296,7 @@ let get_components c =
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ (* Persistent structure descriptions *)
+ type pers_typemap =
+@@ -313,11 +313,11 @@ type pers_struct =
+     ps_flags: pers_flags list }
+ 
+ let persistent_structures : (string, pers_struct option) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+ let imported_units = ref String.Set.empty
+ 
+diff --git a/src/ocaml/typing/403/btype.ml b/src/ocaml/typing/403/btype.ml
+index 56a90ed7..0ec4b92d 100644
+--- a/src/ocaml/typing/403/btype.ml
++++ b/src/ocaml/typing/403/btype.ml
+@@ -88,7 +88,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -647,8 +647,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/403/env.ml b/src/ocaml/typing/403/env.ml
+index f4861a66..6549a195 100644
+--- a/src/ocaml/typing/403/env.ml
++++ b/src/ocaml/typing/403/env.ml
+@@ -31,14 +31,14 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -78,9 +78,9 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+-let prefixed_sg = sref (fun () -> Hashtbl.create 113)
++let prefixed_sg = s_table Hashtbl.create 113
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -335,7 +335,7 @@ let get_components c =
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ (* Persistent structure descriptions *)
+ 
+@@ -353,18 +353,18 @@ type pers_struct = {
+ }
+ 
+ let persistent_structures : (string, pers_struct option) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+-let imported_units = srefk String.Set.empty
++let imported_units = s_ref String.Set.empty
+ 
+ let add_import s =
+   imported_units := String.Set.add s !imported_units
+ 
+-let imported_opaque_units = srefk String.Set.empty
++let imported_opaque_units = s_ref String.Set.empty
+ 
+ let add_imported_opaque s =
+   imported_opaque_units := String.Set.add s !imported_opaque_units
+@@ -389,7 +389,7 @@ let check_consistency ps =
+ 
+ (* Short paths basis *)
+ 
+-let short_paths_basis = sref Short_paths.Basis.create
++let short_paths_basis = s_table Short_paths.Basis.create ()
+ 
+ let short_paths_module_components_desc' = ref (fun _ -> assert false)
+ 
+@@ -734,7 +734,7 @@ let find_module ~alias path env =
+           raise Not_found
+       end
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+diff --git a/src/ocaml/typing/404/btype.ml b/src/ocaml/typing/404/btype.ml
+index dfc15a63..3058407b 100644
+--- a/src/ocaml/typing/404/btype.ml
++++ b/src/ocaml/typing/404/btype.ml
+@@ -88,7 +88,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -647,8 +647,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/404/env.ml b/src/ocaml/typing/404/env.ml
+index ecdad6f7..05f2758d 100644
+--- a/src/ocaml/typing/404/env.ml
++++ b/src/ocaml/typing/404/env.ml
+@@ -29,15 +29,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -77,9 +77,9 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+-let prefixed_sg = sref (fun () -> Hashtbl.create 113)
++let prefixed_sg = s_table Hashtbl.create 113
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -346,7 +346,7 @@ let get_components c =
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ (* Persistent structure descriptions *)
+ 
+@@ -359,18 +359,18 @@ type pers_struct =
+     ps_flags: pers_flags list }
+ 
+ let persistent_structures : (string, pers_struct option) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+-let imported_units = srefk String.Set.empty
++let imported_units = s_ref String.Set.empty
+ 
+ let add_import s =
+   imported_units := String.Set.add s !imported_units
+ 
+-let imported_opaque_units = srefk String.Set.empty
++let imported_opaque_units = s_ref String.Set.empty
+ 
+ let add_imported_opaque s =
+   imported_opaque_units := String.Set.add s !imported_opaque_units
+@@ -395,7 +395,7 @@ let check_consistency ps =
+ 
+ (* Short paths basis *)
+ 
+-let short_paths_basis = sref Short_paths.Basis.create
++let short_paths_basis = s_table Short_paths.Basis.create ()
+ 
+ let short_paths_module_components_desc' = ref (fun _ -> assert false)
+ 
+@@ -767,7 +767,7 @@ let find_module ~alias path env =
+           raise Not_found
+       end
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -1193,7 +1193,7 @@ let lookup_cltype ?loc lid env =
+    not yet evaluated structures) *)
+ 
+ type iter_cont = unit -> unit
+-let iter_env_cont = srefk []
++let iter_env_cont = s_ref []
+ 
+ let rec scrape_alias_for_visit env mty =
+   match mty with
+@@ -2447,8 +2447,8 @@ let summary env =
+   if PathMap.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/405/btype.ml b/src/ocaml/typing/405/btype.ml
+index c1a5d058..42551105 100644
+--- a/src/ocaml/typing/405/btype.ml
++++ b/src/ocaml/typing/405/btype.ml
+@@ -89,7 +89,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -652,8 +652,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/405/env.ml b/src/ocaml/typing/405/env.ml
+index b6ec31b8..c3e173be 100644
+--- a/src/ocaml/typing/405/env.ml
++++ b/src/ocaml/typing/405/env.ml
+@@ -29,15 +29,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -77,9 +77,9 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+-let prefixed_sg = sref (fun () -> Hashtbl.create 113)
++let prefixed_sg = s_table Hashtbl.create 113
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -346,7 +346,7 @@ let get_components c =
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ (* Persistent structure descriptions *)
+ 
+@@ -359,18 +359,18 @@ type pers_struct =
+     ps_flags: pers_flags list }
+ 
+ let persistent_structures : (string, pers_struct option) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+-let imported_units = srefk String.Set.empty
++let imported_units = s_ref String.Set.empty
+ 
+ let add_import s =
+   imported_units := String.Set.add s !imported_units
+ 
+-let imported_opaque_units = srefk String.Set.empty
++let imported_opaque_units = s_ref String.Set.empty
+ 
+ let add_imported_opaque s =
+   imported_opaque_units := String.Set.add s !imported_opaque_units
+@@ -395,7 +395,7 @@ let check_consistency ps =
+ 
+ (* Short paths basis *)
+ 
+-let short_paths_basis = sref Short_paths.Basis.create
++let short_paths_basis = s_table Short_paths.Basis.create ()
+ 
+ let short_paths_module_components_desc' = ref (fun _ -> assert false)
+ 
+@@ -767,7 +767,7 @@ let find_module ~alias path env =
+           raise Not_found
+       end
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -1193,7 +1193,7 @@ let lookup_cltype ?loc lid env =
+    not yet evaluated structures) *)
+ 
+ type iter_cont = unit -> unit
+-let iter_env_cont = srefk []
++let iter_env_cont = s_ref []
+ 
+ let rec scrape_alias_for_visit env mty =
+   match mty with
+@@ -2443,8 +2443,8 @@ let summary env =
+   if PathMap.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/406/btype.ml b/src/ocaml/typing/406/btype.ml
+index c1a5d058..42551105 100644
+--- a/src/ocaml/typing/406/btype.ml
++++ b/src/ocaml/typing/406/btype.ml
+@@ -89,7 +89,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -652,8 +652,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/406/env.ml b/src/ocaml/typing/406/env.ml
+index 30488ac1..384c79e4 100644
+--- a/src/ocaml/typing/406/env.ml
++++ b/src/ocaml/typing/406/env.ml
+@@ -29,15 +29,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -77,9 +77,9 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+-let prefixed_sg = sref (fun () -> Hashtbl.create 113)
++let prefixed_sg = s_table Hashtbl.create 113
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -576,7 +576,7 @@ let get_components c =
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ (* Persistent structure descriptions *)
+ 
+@@ -595,7 +595,7 @@ type pers_struct_key =
+   }
+ 
+ let persistent_structures : (string, pers_struct_key) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ let get_persistent_structure label =
+   try Hashtbl.find !persistent_structures label
+@@ -611,14 +611,14 @@ let has_persistent_structure label =
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+-let imported_units = srefk String.Set.empty
++let imported_units = s_ref String.Set.empty
+ 
+ let add_import s =
+   imported_units := String.Set.add s !imported_units
+ 
+-let imported_opaque_units = srefk String.Set.empty
++let imported_opaque_units = s_ref String.Set.empty
+ 
+ let add_imported_opaque s =
+   imported_opaque_units := String.Set.add s !imported_opaque_units
+@@ -643,7 +643,7 @@ let check_consistency ps =
+ 
+ (* Short paths basis *)
+ 
+-let short_paths_basis = sref Short_paths.Basis.create
++let short_paths_basis = s_table Short_paths.Basis.create ()
+ 
+ let short_paths_module_components_desc' = ref (fun _ -> assert false)
+ 
+@@ -1016,7 +1016,7 @@ let find_module ~alias path env =
+           raise Not_found
+       end
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -1435,7 +1435,7 @@ let lookup_cltype ?loc lid env =
+    not yet evaluated structures) *)
+ 
+ type iter_cont = unit -> unit
+-let iter_env_cont = srefk []
++let iter_env_cont = s_ref []
+ 
+ let rec scrape_alias_for_visit env mty =
+   match mty with
+@@ -2649,8 +2649,8 @@ let summary env =
+   if PathMap.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/407/btype.ml b/src/ocaml/typing/407/btype.ml
+index 69c64607..a2ff9b78 100644
+--- a/src/ocaml/typing/407/btype.ml
++++ b/src/ocaml/typing/407/btype.ml
+@@ -90,7 +90,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -654,8 +654,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/407/env.ml b/src/ocaml/typing/407/env.ml
+index 0f51e1f3..47eff14b 100644
+--- a/src/ocaml/typing/407/env.ml
++++ b/src/ocaml/typing/407/env.ml
+@@ -29,15 +29,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -77,9 +77,9 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+-let prefixed_sg = sref (fun () -> Hashtbl.create 113)
++let prefixed_sg = s_table Hashtbl.create 113
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -567,7 +567,7 @@ let get_components c =
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ (* Persistent structure descriptions *)
+ 
+@@ -580,18 +580,18 @@ type pers_struct =
+     ps_flags: pers_flags list }
+ 
+ let persistent_structures : (string, pers_struct option) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+-let imported_units = srefk String.Set.empty
++let imported_units = s_ref String.Set.empty
+ 
+ let add_import s =
+   imported_units := String.Set.add s !imported_units
+ 
+-let imported_opaque_units = srefk String.Set.empty
++let imported_opaque_units = s_ref String.Set.empty
+ 
+ let add_imported_opaque s =
+   imported_opaque_units := String.Set.add s !imported_opaque_units
+@@ -616,7 +616,7 @@ let check_consistency ps =
+ 
+ (* Short paths basis *)
+ 
+-let short_paths_basis = sref Short_paths.Basis.create
++let short_paths_basis = s_table Short_paths.Basis.create ()
+ 
+ let short_paths_module_components_desc' = ref (fun _ -> assert false)
+ 
+@@ -986,7 +986,7 @@ let find_module ~alias path env =
+           raise Not_found
+       end
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -1420,7 +1420,7 @@ let lookup_cltype ?loc ?(mark = true) lid env =
+    not yet evaluated structures) *)
+ 
+ type iter_cont = unit -> unit
+-let iter_env_cont = srefk []
++let iter_env_cont = s_ref []
+ 
+ let rec scrape_alias_for_visit env mty =
+   match mty with
+@@ -2624,8 +2624,8 @@ let summary env =
+   if PathMap.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/407_0/btype.ml b/src/ocaml/typing/407_0/btype.ml
+index 69c64607..a2ff9b78 100644
+--- a/src/ocaml/typing/407_0/btype.ml
++++ b/src/ocaml/typing/407_0/btype.ml
+@@ -90,7 +90,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -654,8 +654,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/407_0/env.ml b/src/ocaml/typing/407_0/env.ml
+index f77b72cc..0412f34d 100644
+--- a/src/ocaml/typing/407_0/env.ml
++++ b/src/ocaml/typing/407_0/env.ml
+@@ -29,15 +29,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -77,9 +77,9 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+-let prefixed_sg = sref (fun () -> Hashtbl.create 113)
++let prefixed_sg = s_table Hashtbl.create 113
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -567,7 +567,7 @@ let get_components c =
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ (* Persistent structure descriptions *)
+ 
+@@ -580,18 +580,18 @@ type pers_struct =
+     ps_flags: pers_flags list }
+ 
+ let persistent_structures : (string, pers_struct option) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+-let imported_units = srefk String.Set.empty
++let imported_units = s_ref String.Set.empty
+ 
+ let add_import s =
+   imported_units := String.Set.add s !imported_units
+ 
+-let imported_opaque_units = srefk String.Set.empty
++let imported_opaque_units = s_ref String.Set.empty
+ 
+ let add_imported_opaque s =
+   imported_opaque_units := String.Set.add s !imported_opaque_units
+@@ -616,7 +616,7 @@ let check_consistency ps =
+ 
+ (* Short paths basis *)
+ 
+-let short_paths_basis = sref Short_paths.Basis.create
++let short_paths_basis = s_ref Short_paths.Basis.create
+ 
+ let short_paths_module_components_desc' = ref (fun _ -> assert false)
+ 
+@@ -986,7 +986,7 @@ let find_module ~alias path env =
+           raise Not_found
+       end
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -1421,7 +1421,7 @@ let lookup_cltype ?loc ?(mark = true) lid env =
+    not yet evaluated structures) *)
+ 
+ type iter_cont = unit -> unit
+-let iter_env_cont = srefk []
++let iter_env_cont = s_ref []
+ 
+ let rec scrape_alias_for_visit env mty =
+   match mty with
+@@ -2625,8 +2625,8 @@ let summary env =
+   if PathMap.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/408/btype.ml b/src/ocaml/typing/408/btype.ml
+index cb0aa730..4cb9aec1 100644
+--- a/src/ocaml/typing/408/btype.ml
++++ b/src/ocaml/typing/408/btype.ml
+@@ -89,7 +89,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -699,8 +699,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/408/env.ml b/src/ocaml/typing/408/env.ml
+index a0443b13..c00dcb81 100644
+--- a/src/ocaml/typing/408/env.ml
++++ b/src/ocaml/typing/408/env.ml
+@@ -28,15 +28,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -76,7 +76,7 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+ type error =
+   | Illegal_renaming of string * string * string
+@@ -553,7 +553,7 @@ type can_load_cmis =
+   | Can_load_cmis
+   | Cannot_load_cmis of EnvLazy.log
+ 
+-let can_load_cmis = srefk Can_load_cmis
++let can_load_cmis = s_ref Can_load_cmis
+ 
+ let without_cmis f x =
+   let log = EnvLazy.log () in
+@@ -626,7 +626,7 @@ let rec print_address ppf = function
+ (* The name of the compilation unit currently compiled.
+    "" if outside a compilation unit. *)
+ 
+-let current_unit = srefk ""
++let current_unit = s_ref ""
+ 
+ let find_same_module id tbl =
+   match IdTbl.find_same id tbl with
+@@ -652,18 +652,18 @@ type pers_struct =
+     ps_flags: pers_flags list }
+ 
+ let persistent_structures : (string, pers_struct option) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 17)
++  s_table Hashtbl.create 17
+ 
+ (* Consistency between persistent structures *)
+ 
+-let crc_units = sref Consistbl.create
++let crc_units = s_table Consistbl.create ()
+ 
+-let imported_units = srefk String.Set.empty
++let imported_units = s_ref String.Set.empty
+ 
+ let add_import s =
+   imported_units := String.Set.add s !imported_units
+ 
+-let imported_opaque_units = srefk String.Set.empty
++let imported_opaque_units = s_ref String.Set.empty
+ 
+ let add_imported_opaque s =
+   imported_opaque_units := String.Set.add s !imported_opaque_units
+@@ -688,7 +688,7 @@ let check_consistency ps =
+ 
+ (* Short paths basis *)
+ 
+-let short_paths_basis = sref Short_paths.Basis.create
++let short_paths_basis = s_table Short_paths.Basis.create ()
+ 
+ let short_paths_module_components_desc' = ref (fun _ -> assert false)
+ 
+@@ -1127,7 +1127,7 @@ let find_constructor_address path env =
+   | Papply _ ->
+       raise Not_found
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -1630,7 +1630,7 @@ let may_subst subst_f sub x =
+    not yet evaluated structures) *)
+ 
+ type iter_cont = unit -> unit
+-let iter_env_cont = srefk []
++let iter_env_cont = s_ref []
+ 
+ let rec scrape_alias_for_visit env sub mty =
+   match mty with
+@@ -3041,8 +3041,8 @@ let summary env =
+   if Path.Map.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/409/btype.ml b/src/ocaml/typing/409/btype.ml
+index cb0aa730..4cb9aec1 100644
+--- a/src/ocaml/typing/409/btype.ml
++++ b/src/ocaml/typing/409/btype.ml
+@@ -89,7 +89,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -699,8 +699,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/409/env.ml b/src/ocaml/typing/409/env.ml
+index 1646df6a..d01e6797 100644
+--- a/src/ocaml/typing/409/env.ml
++++ b/src/ocaml/typing/409/env.ml
+@@ -28,15 +28,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -76,7 +76,7 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+ type error =
+   | Missing_module of Location.t * Path.t * Path.t
+@@ -688,7 +688,7 @@ let read_sign_of_cmi = sign_of_cmi ~freshen:true
+ let save_sign_of_cmi = sign_of_cmi ~freshen:false
+ 
+ let persistent_env : persistent_module Persistent_env.t ref =
+-  sref Persistent_env.empty
++  s_table Persistent_env.empty ()
+ 
+ let without_cmis f x =
+   Persistent_env.without_cmis !persistent_env f x
+@@ -948,7 +948,7 @@ let find_constructor_address path env =
+   | Papply _ ->
+       raise Not_found
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -1461,7 +1461,7 @@ let may_subst subst_f sub x =
+    not yet evaluated structures) *)
+ 
+ type iter_cont = unit -> unit
+-let iter_env_cont = srefk []
++let iter_env_cont = s_ref []
+ 
+ let rec scrape_alias_for_visit env sub mty =
+   match mty with
+@@ -2826,8 +2826,8 @@ let summary env =
+   if Path.Map.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/410/btype.ml b/src/ocaml/typing/410/btype.ml
+index 9916961a..29646a1e 100644
+--- a/src/ocaml/typing/410/btype.ml
++++ b/src/ocaml/typing/410/btype.ml
+@@ -85,7 +85,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -720,8 +720,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/410/env.ml b/src/ocaml/typing/410/env.ml
+index 8468cfe9..844e3922 100644
+--- a/src/ocaml/typing/410/env.ml
++++ b/src/ocaml/typing/410/env.ml
+@@ -28,15 +28,15 @@ open Local_store.Compiler
+ let add_delayed_check_forward = ref (fun _ -> assert false)
+ 
+ let value_declarations : ((string * Location.t), (unit -> unit)) Hashtbl.t ref =
+-  sref (fun () -> Hashtbl.create 16)
++  s_table Hashtbl.create 16
+     (* This table is used to usage of value declarations.  A declaration is
+        identified with its name and location.  The callback attached to a
+        declaration is called whenever the value is used explicitly
+        (lookup_value) or implicitly (inclusion test between signatures,
+        cf Includemod.value_descriptions). *)
+ 
+-let type_declarations = sref (fun () -> Hashtbl.create 16)
+-let module_declarations = sref (fun () -> Hashtbl.create 16)
++let type_declarations = s_table Hashtbl.create 16
++let module_declarations = s_table Hashtbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -88,7 +88,7 @@ let constructor_usages () =
+ 
+ let used_constructors :
+     (string * Location.t * string, (constructor_usage -> unit)) Hashtbl.t ref
+-  = sref (fun () -> Hashtbl.create 16)
++  = s_table Hashtbl.create 16
+ 
+ (** Map indexed by the name of module components. *)
+ module NameMap = String.Map
+@@ -822,7 +822,7 @@ let read_sign_of_cmi = sign_of_cmi ~freshen:true
+ let save_sign_of_cmi = sign_of_cmi ~freshen:false
+ 
+ let persistent_env : module_data Persistent_env.t ref =
+-  sref Persistent_env.empty
++  s_table Persistent_env.empty ()
+ 
+ let without_cmis f x =
+   Persistent_env.without_cmis !persistent_env f x
+@@ -1115,7 +1115,7 @@ let find_hash_type path env =
+   | Papply _ ->
+       raise Not_found
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -3110,8 +3110,8 @@ let summary env =
+   if Path.Map.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/typing/411/btype.ml b/src/ocaml/typing/411/btype.ml
+index d6570241..cf1aaa53 100644
+--- a/src/ocaml/typing/411/btype.ml
++++ b/src/ocaml/typing/411/btype.ml
+@@ -85,7 +85,7 @@ type changes =
+ 
+ open Local_store.Compiler
+ 
+-let trail = sref (fun () -> Weak.create 1)
++let trail = s_table Weak.create 1
+ 
+ let log_change ch =
+   match Weak.get !trail 0 with None -> ()
+@@ -722,8 +722,8 @@ let undo_change = function
+   | Cfun f -> f ()
+ 
+ type snapshot = changes ref * int
+-let last_snapshot = srefk 0
+-let linked_variables = srefk 0
++let last_snapshot = s_ref 0
++let linked_variables = s_ref 0
+ 
+ let log_type ty =
+   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+diff --git a/src/ocaml/typing/411/env.ml b/src/ocaml/typing/411/env.ml
+index 9845f5a5..fc723e3e 100644
+--- a/src/ocaml/typing/411/env.ml
++++ b/src/ocaml/typing/411/env.ml
+@@ -37,9 +37,9 @@ type 'a usage_tbl = ('a -> unit) Types.Uid.Tbl.t
+     (inclusion test between signatures, cf Includemod.value_descriptions, ...).
+ *)
+ 
+-let value_declarations  : unit usage_tbl ref = sref (fun () -> Types.Uid.Tbl.create 16)
+-let type_declarations   : unit usage_tbl ref = sref (fun () -> Types.Uid.Tbl.create 16)
+-let module_declarations : unit usage_tbl ref = sref (fun () -> Types.Uid.Tbl.create 16)
++let value_declarations  : unit usage_tbl ref = s_table Types.Uid.Tbl.create 16
++let type_declarations   : unit usage_tbl ref = s_table Types.Uid.Tbl.create 16
++let module_declarations : unit usage_tbl ref = s_table Types.Uid.Tbl.create 16
+ 
+ type constructor_usage = Positive | Pattern | Privatize
+ type constructor_usages =
+@@ -67,7 +67,7 @@ let constructor_usages () =
+   {cu_positive = false; cu_pattern = false; cu_privatize = false}
+ 
+ let used_constructors : constructor_usage usage_tbl ref =
+-  sref (fun () -> Types.Uid.Tbl.create 16)
++  s_table Types.Uid.Tbl.create 16
+ 
+ (** Map indexed by the name of module components. *)
+ module NameMap = String.Map
+@@ -806,7 +806,7 @@ let read_sign_of_cmi = sign_of_cmi ~freshen:true
+ let save_sign_of_cmi = sign_of_cmi ~freshen:false
+ 
+ let persistent_env : module_data Persistent_env.t ref =
+-  sref Persistent_env.empty
++  s_table Persistent_env.empty ()
+ 
+ let without_cmis f x =
+   Persistent_env.without_cmis !persistent_env f x
+@@ -1106,7 +1106,7 @@ let find_hash_type path env =
+   | Papply _ ->
+       raise Not_found
+ 
+-let required_globals = srefk []
++let required_globals = s_ref []
+ let reset_required_globals () = required_globals := []
+ let get_required_globals () = !required_globals
+ let add_required_global id =
+@@ -3100,8 +3100,8 @@ let summary env =
+   if Path.Map.is_empty env.local_constraints then env.summary
+   else Env_constraints (env.summary, env.local_constraints)
+ 
+-let last_env = srefk empty
+-let last_reduced_env = srefk empty
++let last_env = s_ref empty
++let last_reduced_env = s_ref empty
+ 
+ let keep_only_summary env =
+   if !last_env == env then !last_reduced_env
+diff --git a/src/ocaml/utils/402/config.ml b/src/ocaml/utils/402/config.ml
+index c48adccc..ebbb5d30 100644
+--- a/src/ocaml/utils/402/config.ml
++++ b/src/ocaml/utils/402/config.ml
+@@ -36,7 +36,7 @@ and ast_intf_magic_number = "Caml1999N015"
+ and cmxs_magic_number = "Caml2007D002"
+ and cmt_magic_number = "Caml2012T004"
+ 
+-let load_path = srefk ([] : string list)
++let load_path = s_ref ([] : string list)
+ 
+ let interface_suffix = ref ".mli"
+ 
+diff --git a/src/ocaml/utils/403/config.ml b/src/ocaml/utils/403/config.ml
+index e482fa17..b72cbdc9 100644
+--- a/src/ocaml/utils/403/config.ml
++++ b/src/ocaml/utils/403/config.ml
+@@ -43,7 +43,7 @@ and ast_intf_magic_number = "Caml1999N018"
+ and cmxs_magic_number = "Caml2007D002"
+ and cmt_magic_number = "Caml2012T007"
+ 
+-let load_path = srefk ([] : string list)
++let load_path = s_ref ([] : string list)
+ 
+ let interface_suffix = ref ".mli"
+ 
+diff --git a/src/ocaml/utils/404/config.ml b/src/ocaml/utils/404/config.ml
+index ba932c2c..2fc991b3 100644
+--- a/src/ocaml/utils/404/config.ml
++++ b/src/ocaml/utils/404/config.ml
+@@ -47,7 +47,7 @@ and ast_intf_magic_number = "Caml1999N018"
+ and cmxs_magic_number = "Caml2007D002"
+ and cmt_magic_number = "Caml2012T008"
+ 
+-let load_path = srefk ([] : string list)
++let load_path = s_ref ([] : string list)
+ 
+ let interface_suffix = ref ".mli"
+ 
+diff --git a/src/ocaml/utils/405/config.ml b/src/ocaml/utils/405/config.ml
+index 57a24713..9f9c7157 100644
+--- a/src/ocaml/utils/405/config.ml
++++ b/src/ocaml/utils/405/config.ml
+@@ -47,7 +47,7 @@ and ast_intf_magic_number = "Caml1999N018"
+ and cmxs_magic_number = "Caml2007D002"
+ and cmt_magic_number = "Caml2012T009"
+ 
+-let load_path = srefk ([] : string list)
++let load_path = s_ref ([] : string list)
+ 
+ let interface_suffix = ref ".mli"
+ 
+diff --git a/src/ocaml/utils/406/config.ml b/src/ocaml/utils/406/config.ml
+index 05fa720c..21757319 100644
+--- a/src/ocaml/utils/406/config.ml
++++ b/src/ocaml/utils/406/config.ml
+@@ -50,7 +50,7 @@ and cmxs_magic_number = "Caml1999D022"
+     (* cmxs_magic_number is duplicated in otherlibs/dynlink/natdynlink.ml *)
+ and cmt_magic_number = "Caml1999T022"
+ 
+-let load_path = srefk ([] : string list)
++let load_path = s_ref ([] : string list)
+ 
+ let interface_suffix = ref ".mli"
+ 
+diff --git a/src/ocaml/utils/407/config.ml b/src/ocaml/utils/407/config.ml
+index f6873b2f..48d98bee 100644
+--- a/src/ocaml/utils/407/config.ml
++++ b/src/ocaml/utils/407/config.ml
+@@ -50,7 +50,7 @@ and cmxs_magic_number = "Caml1999D023"
+     (* cmxs_magic_number is duplicated in otherlibs/dynlink/natdynlink.ml *)
+ and cmt_magic_number = "Caml1999T024"
+ 
+-let load_path = srefk ([] : string list)
++let load_path = s_ref ([] : string list)
+ 
+ let interface_suffix = ref ".mli"
+ 
+diff --git a/src/ocaml/utils/408/load_path.ml b/src/ocaml/utils/408/load_path.ml
+index 1862cc67..b6166ad2 100644
+--- a/src/ocaml/utils/408/load_path.ml
++++ b/src/ocaml/utils/408/load_path.ml
+@@ -19,8 +19,8 @@ type registry = string SMap.t ref
+ 
+ open Local_store.Compiler
+ 
+-let files : registry = srefk SMap.empty
+-let files_uncap : registry = srefk SMap.empty
++let files : registry = s_ref SMap.empty
++let files_uncap : registry = s_ref SMap.empty
+ 
+ module Dir = struct
+   type t = {
+@@ -35,7 +35,7 @@ module Dir = struct
+     { path; files = Array.to_list (Directory_content_cache.read path) }
+ end
+ 
+-let dirs = srefk []
++let dirs = s_ref []
+ 
+ let reset () =
+   assert (Local_store.is_bound compiler_state);
+diff --git a/src/ocaml/utils/409/load_path.ml b/src/ocaml/utils/409/load_path.ml
+index 1862cc67..b6166ad2 100644
+--- a/src/ocaml/utils/409/load_path.ml
++++ b/src/ocaml/utils/409/load_path.ml
+@@ -19,8 +19,8 @@ type registry = string SMap.t ref
+ 
+ open Local_store.Compiler
+ 
+-let files : registry = srefk SMap.empty
+-let files_uncap : registry = srefk SMap.empty
++let files : registry = s_ref SMap.empty
++let files_uncap : registry = s_ref SMap.empty
+ 
+ module Dir = struct
+   type t = {
+@@ -35,7 +35,7 @@ module Dir = struct
+     { path; files = Array.to_list (Directory_content_cache.read path) }
+ end
+ 
+-let dirs = srefk []
++let dirs = s_ref []
+ 
+ let reset () =
+   assert (Local_store.is_bound compiler_state);
+diff --git a/src/ocaml/utils/410/load_path.ml b/src/ocaml/utils/410/load_path.ml
+index 1862cc67..b6166ad2 100644
+--- a/src/ocaml/utils/410/load_path.ml
++++ b/src/ocaml/utils/410/load_path.ml
+@@ -19,8 +19,8 @@ type registry = string SMap.t ref
+ 
+ open Local_store.Compiler
+ 
+-let files : registry = srefk SMap.empty
+-let files_uncap : registry = srefk SMap.empty
++let files : registry = s_ref SMap.empty
++let files_uncap : registry = s_ref SMap.empty
+ 
+ module Dir = struct
+   type t = {
+@@ -35,7 +35,7 @@ module Dir = struct
+     { path; files = Array.to_list (Directory_content_cache.read path) }
+ end
+ 
+-let dirs = srefk []
++let dirs = s_ref []
+ 
+ let reset () =
+   assert (Local_store.is_bound compiler_state);
+diff --git a/src/ocaml/utils/411/load_path.ml b/src/ocaml/utils/411/load_path.ml
+index 1862cc67..b6166ad2 100644
+--- a/src/ocaml/utils/411/load_path.ml
++++ b/src/ocaml/utils/411/load_path.ml
+@@ -19,8 +19,8 @@ type registry = string SMap.t ref
+ 
+ open Local_store.Compiler
+ 
+-let files : registry = srefk SMap.empty
+-let files_uncap : registry = srefk SMap.empty
++let files : registry = s_ref SMap.empty
++let files_uncap : registry = s_ref SMap.empty
+ 
+ module Dir = struct
+   type t = {
+@@ -35,7 +35,7 @@ module Dir = struct
+     { path; files = Array.to_list (Directory_content_cache.read path) }
+ end
+ 
+-let dirs = srefk []
++let dirs = s_ref []
+ 
+ let reset () =
+   assert (Local_store.is_bound compiler_state);
+diff --git a/src/utils/local_store.ml b/src/utils/local_store.ml
+index c0b6ced2..799cad9f 100644
+--- a/src/utils/local_store.ml
++++ b/src/utils/local_store.ml
+@@ -1,6 +1,9 @@
++type 'a table = { ref: 'a ref; init: unit -> 'a }
++type 'a immutable = { ref: 'a ref; mutable snapshot: 'a }
++
+ type ref_and_reset =
+-  | Table : { ref: 'a ref; init: unit -> 'a } -> ref_and_reset
+-  | Immutable : { ref: 'a ref; mutable snapshot: 'a } -> ref_and_reset
++  | Table : 'a table -> ref_and_reset
++  | Immutable : 'a immutable -> ref_and_reset
+ 
+ type bindings = {
+   mutable refs: ref_and_reset list;
+@@ -33,7 +36,8 @@ let ref t k =
+   t.refs <- (Immutable { ref; snapshot = k }) :: t.refs;
+   ref
+ 
+-type slot = Slot : { ref : 'a ref; mutable value : 'a } -> slot
++type 'a cell = { ref : 'a ref; mutable value : 'a }
++type slot = Slot : 'a cell -> slot
+ type scope = { slots: slot list; scope_bound : bool ref }
+ 
+ let fresh t =
+@@ -52,10 +56,15 @@ let with_scope { slots; scope_bound } f =
+   assert (not !scope_bound);
+   scope_bound := true;
+   List.iter (fun (Slot {ref;value}) -> ref := value) slots;
+-  Fun.protect f ~finally:(fun () ->
++  match f () with
++  | res ->
++    List.iter (fun (Slot s) -> s.value <- !(s.ref)) slots;
++    scope_bound := false;
++    res
++  | exception exn ->
+     List.iter (fun (Slot s) -> s.value <- !(s.ref)) slots;
+-    scope_bound := false
+-  )
++    scope_bound := false;
++    raise exn
+ 
+ module Compiler = struct
+   let compiler_state = new_bindings ()
+-- 
+2.28.0
+
