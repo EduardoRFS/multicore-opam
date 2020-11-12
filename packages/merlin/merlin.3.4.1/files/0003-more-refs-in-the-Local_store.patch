@@ -1,0 +1,1090 @@
+From 2d962a0ad0248d4ffb68919eaf589c7a04967539 Mon Sep 17 00:00:00 2001
+From: Thomas Refis <thomas.refis@gmail.com>
+Date: Tue, 6 Oct 2020 18:01:14 +0200
+Subject: [PATCH 03/10] more refs in the Local_store
+
+---
+ src/ocaml/typing/402/btype.ml   |  4 +++-
+ src/ocaml/typing/402/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/402/ident.ml   |  3 ++-
+ src/ocaml/typing/402/subst.ml   |  4 +++-
+ src/ocaml/typing/403/btype.ml   |  4 +++-
+ src/ocaml/typing/403/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/403/ident.ml   |  3 ++-
+ src/ocaml/typing/403/subst.ml   |  4 +++-
+ src/ocaml/typing/404/btype.ml   |  4 +++-
+ src/ocaml/typing/404/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/404/ident.ml   |  3 ++-
+ src/ocaml/typing/404/subst.ml   |  4 +++-
+ src/ocaml/typing/405/btype.ml   |  4 +++-
+ src/ocaml/typing/405/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/405/ident.ml   |  3 ++-
+ src/ocaml/typing/405/subst.ml   |  4 +++-
+ src/ocaml/typing/406/btype.ml   |  4 +++-
+ src/ocaml/typing/406/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/406/ident.ml   |  3 ++-
+ src/ocaml/typing/406/subst.ml   |  4 +++-
+ src/ocaml/typing/407/btype.ml   |  4 +++-
+ src/ocaml/typing/407/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/407/ident.ml   |  3 ++-
+ src/ocaml/typing/407/subst.ml   |  4 +++-
+ src/ocaml/typing/407_0/btype.ml |  4 +++-
+ src/ocaml/typing/407_0/ctype.ml | 10 ++++++----
+ src/ocaml/typing/407_0/ident.ml |  3 ++-
+ src/ocaml/typing/407_0/subst.ml |  4 +++-
+ src/ocaml/typing/408/btype.ml   |  4 +++-
+ src/ocaml/typing/408/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/408/ident.ml   |  6 ++++--
+ src/ocaml/typing/408/subst.ml   |  4 +++-
+ src/ocaml/typing/409/btype.ml   |  4 +++-
+ src/ocaml/typing/409/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/409/ident.ml   |  6 ++++--
+ src/ocaml/typing/409/subst.ml   |  4 +++-
+ src/ocaml/typing/410/btype.ml   |  4 +++-
+ src/ocaml/typing/410/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/410/ident.ml   |  6 ++++--
+ src/ocaml/typing/410/subst.ml   |  4 +++-
+ src/ocaml/typing/411/btype.ml   |  4 +++-
+ src/ocaml/typing/411/ctype.ml   | 10 ++++++----
+ src/ocaml/typing/411/ident.ml   |  6 ++++--
+ src/ocaml/typing/411/subst.ml   |  4 +++-
+ 44 files changed, 162 insertions(+), 81 deletions(-)
+
+diff --git a/src/ocaml/typing/402/btype.ml b/src/ocaml/typing/402/btype.ml
+index e6bfab42..e0d90085 100644
+--- a/src/ocaml/typing/402/btype.ml
++++ b/src/ocaml/typing/402/btype.ml
+@@ -17,6 +17,8 @@
+ open Misc
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -39,7 +41,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; id = !new_id }
+diff --git a/src/ocaml/typing/402/ctype.ml b/src/ocaml/typing/402/ctype.ml
+index a40d7e33..e995efac 100644
+--- a/src/ocaml/typing/402/ctype.ml
++++ b/src/ocaml/typing/402/ctype.ml
+@@ -19,6 +19,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -113,10 +115,10 @@ exception Unification_recursive_abbrev of (type_expr * type_expr) list
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/402/ident.ml b/src/ocaml/typing/402/ident.ml
+index bef5edc5..c304e334 100644
+--- a/src/ocaml/typing/402/ident.ml
++++ b/src/ocaml/typing/402/ident.ml
+@@ -11,6 +11,7 @@
+ (***********************************************************************)
+ 
+ open Format
++open Local_store.Compiler
+ 
+ type t = { stamp: int; name: string; mutable flags: int }
+ 
+@@ -19,7 +20,7 @@ let predef_exn_flag = 2
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
++let currentstamp = s_ref 0
+ 
+ let create s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/402/subst.ml b/src/ocaml/typing/402/subst.ml
+index 6c56b15f..a153889f 100644
+--- a/src/ocaml/typing/402/subst.ml
++++ b/src/ocaml/typing/402/subst.ml
+@@ -19,6 +19,8 @@ open Path
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: (Ident.t, Path.t) Tbl.t;
+     modules: (Ident.t, Path.t) Tbl.t;
+@@ -95,7 +97,7 @@ let type_path s = function
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/403/btype.ml b/src/ocaml/typing/403/btype.ml
+index 0ec4b92d..2b952562 100644
+--- a/src/ocaml/typing/403/btype.ml
++++ b/src/ocaml/typing/403/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; id = !new_id }
+diff --git a/src/ocaml/typing/403/ctype.ml b/src/ocaml/typing/403/ctype.ml
+index d46bd0b0..7903e0c1 100644
+--- a/src/ocaml/typing/403/ctype.ml
++++ b/src/ocaml/typing/403/ctype.ml
+@@ -22,6 +22,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -87,10 +89,10 @@ exception Unification_recursive_abbrev of (type_expr * type_expr) list
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/403/ident.ml b/src/ocaml/typing/403/ident.ml
+index 681facfe..ded030b5 100644
+--- a/src/ocaml/typing/403/ident.ml
++++ b/src/ocaml/typing/403/ident.ml
+@@ -14,6 +14,7 @@
+ (**************************************************************************)
+ 
+ open Format
++open Local_store.Compiler
+ 
+ type t = { stamp: int; name: string; mutable flags: int }
+ 
+@@ -22,7 +23,7 @@ let predef_exn_flag = 2
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
++let currentstamp = s_ref 0
+ 
+ let create s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/403/subst.ml b/src/ocaml/typing/403/subst.ml
+index 33cfffcb..08e8e79a 100644
+--- a/src/ocaml/typing/403/subst.ml
++++ b/src/ocaml/typing/403/subst.ml
+@@ -20,6 +20,8 @@ open Path
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: (Ident.t, Path.t) Tbl.t;
+     modules: (Ident.t, Path.t) Tbl.t;
+@@ -107,7 +109,7 @@ let type_path s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/404/btype.ml b/src/ocaml/typing/404/btype.ml
+index 3058407b..a76f0d7f 100644
+--- a/src/ocaml/typing/404/btype.ml
++++ b/src/ocaml/typing/404/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; id = !new_id }
+diff --git a/src/ocaml/typing/404/ctype.ml b/src/ocaml/typing/404/ctype.ml
+index 96dbbb2b..297be021 100644
+--- a/src/ocaml/typing/404/ctype.ml
++++ b/src/ocaml/typing/404/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -85,10 +87,10 @@ exception Unification_recursive_abbrev of (type_expr * type_expr) list
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/404/ident.ml b/src/ocaml/typing/404/ident.ml
+index 681facfe..ded030b5 100644
+--- a/src/ocaml/typing/404/ident.ml
++++ b/src/ocaml/typing/404/ident.ml
+@@ -14,6 +14,7 @@
+ (**************************************************************************)
+ 
+ open Format
++open Local_store.Compiler
+ 
+ type t = { stamp: int; name: string; mutable flags: int }
+ 
+@@ -22,7 +23,7 @@ let predef_exn_flag = 2
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
++let currentstamp = s_ref 0
+ 
+ let create s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/404/subst.ml b/src/ocaml/typing/404/subst.ml
+index ce115f9d..b9665ad8 100644
+--- a/src/ocaml/typing/404/subst.ml
++++ b/src/ocaml/typing/404/subst.ml
+@@ -20,6 +20,8 @@ open Path
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: (Ident.t, Path.t) Tbl.t;
+     modules: (Ident.t, Path.t) Tbl.t;
+@@ -107,7 +109,7 @@ let type_path s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/405/btype.ml b/src/ocaml/typing/405/btype.ml
+index 42551105..240eec67 100644
+--- a/src/ocaml/typing/405/btype.ml
++++ b/src/ocaml/typing/405/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; id = !new_id }
+diff --git a/src/ocaml/typing/405/ctype.ml b/src/ocaml/typing/405/ctype.ml
+index 3135e4a2..591d2af2 100644
+--- a/src/ocaml/typing/405/ctype.ml
++++ b/src/ocaml/typing/405/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -85,10 +87,10 @@ exception Unification_recursive_abbrev of (type_expr * type_expr) list
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/405/ident.ml b/src/ocaml/typing/405/ident.ml
+index 681facfe..ded030b5 100644
+--- a/src/ocaml/typing/405/ident.ml
++++ b/src/ocaml/typing/405/ident.ml
+@@ -14,6 +14,7 @@
+ (**************************************************************************)
+ 
+ open Format
++open Local_store.Compiler
+ 
+ type t = { stamp: int; name: string; mutable flags: int }
+ 
+@@ -22,7 +23,7 @@ let predef_exn_flag = 2
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
++let currentstamp = s_ref 0
+ 
+ let create s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/405/subst.ml b/src/ocaml/typing/405/subst.ml
+index 69769d1e..a39fab97 100644
+--- a/src/ocaml/typing/405/subst.ml
++++ b/src/ocaml/typing/405/subst.ml
+@@ -20,6 +20,8 @@ open Path
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: (Ident.t, Path.t) Tbl.t;
+     modules: (Ident.t, Path.t) Tbl.t;
+@@ -103,7 +105,7 @@ let type_path s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/406/btype.ml b/src/ocaml/typing/406/btype.ml
+index 42551105..240eec67 100644
+--- a/src/ocaml/typing/406/btype.ml
++++ b/src/ocaml/typing/406/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; id = !new_id }
+diff --git a/src/ocaml/typing/406/ctype.ml b/src/ocaml/typing/406/ctype.ml
+index df46de1f..84098763 100644
+--- a/src/ocaml/typing/406/ctype.ml
++++ b/src/ocaml/typing/406/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -85,10 +87,10 @@ exception Unification_recursive_abbrev of (type_expr * type_expr) list
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/406/ident.ml b/src/ocaml/typing/406/ident.ml
+index ec369764..08a8c3c7 100644
+--- a/src/ocaml/typing/406/ident.ml
++++ b/src/ocaml/typing/406/ident.ml
+@@ -14,6 +14,7 @@
+ (**************************************************************************)
+ 
+ open Format
++open Local_store.Compiler
+ 
+ type t = { stamp: int; name: string; mutable flags: int }
+ 
+@@ -22,7 +23,7 @@ let predef_exn_flag = 2
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
++let currentstamp = s_ref 0
+ 
+ let create s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/406/subst.ml b/src/ocaml/typing/406/subst.ml
+index d81c4b89..a4bb21d7 100644
+--- a/src/ocaml/typing/406/subst.ml
++++ b/src/ocaml/typing/406/subst.ml
+@@ -26,6 +26,8 @@ type type_replacement =
+ 
+ module PathMap = Path.Map
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: type_replacement PathMap.t;
+     modules: Path.t PathMap.t;
+@@ -131,7 +133,7 @@ let to_subst_by_type_function s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/407/btype.ml b/src/ocaml/typing/407/btype.ml
+index a2ff9b78..bb2683fb 100644
+--- a/src/ocaml/typing/407/btype.ml
++++ b/src/ocaml/typing/407/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; scope = None; id = !new_id }
+diff --git a/src/ocaml/typing/407/ctype.ml b/src/ocaml/typing/407/ctype.ml
+index 682c9c44..f9a27510 100644
+--- a/src/ocaml/typing/407/ctype.ml
++++ b/src/ocaml/typing/407/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -85,10 +87,10 @@ exception Unification_recursive_abbrev of (type_expr * type_expr) list
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/407/ident.ml b/src/ocaml/typing/407/ident.ml
+index f185cc39..db32791c 100644
+--- a/src/ocaml/typing/407/ident.ml
++++ b/src/ocaml/typing/407/ident.ml
+@@ -14,6 +14,7 @@
+ (**************************************************************************)
+ 
+ open Format
++open Local_store.Compiler
+ 
+ type t = { stamp: int; name: string; flags: int }
+ 
+@@ -22,7 +23,7 @@ let predef_exn_flag = 2
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
++let currentstamp = s_ref 0
+ 
+ let create s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/407/subst.ml b/src/ocaml/typing/407/subst.ml
+index 4bf78fdf..a40cc308 100644
+--- a/src/ocaml/typing/407/subst.ml
++++ b/src/ocaml/typing/407/subst.ml
+@@ -26,6 +26,8 @@ type type_replacement =
+ 
+ module PathMap = Path.Map
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: type_replacement PathMap.t;
+     modules: Path.t PathMap.t;
+@@ -131,7 +133,7 @@ let to_subst_by_type_function s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/407_0/btype.ml b/src/ocaml/typing/407_0/btype.ml
+index a2ff9b78..bb2683fb 100644
+--- a/src/ocaml/typing/407_0/btype.ml
++++ b/src/ocaml/typing/407_0/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; scope = None; id = !new_id }
+diff --git a/src/ocaml/typing/407_0/ctype.ml b/src/ocaml/typing/407_0/ctype.ml
+index f24e46d1..a12cbfbe 100644
+--- a/src/ocaml/typing/407_0/ctype.ml
++++ b/src/ocaml/typing/407_0/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -85,10 +87,10 @@ exception Unification_recursive_abbrev of (type_expr * type_expr) list
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/407_0/ident.ml b/src/ocaml/typing/407_0/ident.ml
+index f185cc39..db32791c 100644
+--- a/src/ocaml/typing/407_0/ident.ml
++++ b/src/ocaml/typing/407_0/ident.ml
+@@ -14,6 +14,7 @@
+ (**************************************************************************)
+ 
+ open Format
++open Local_store.Compiler
+ 
+ type t = { stamp: int; name: string; flags: int }
+ 
+@@ -22,7 +23,7 @@ let predef_exn_flag = 2
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
++let currentstamp = s_ref 0
+ 
+ let create s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/407_0/subst.ml b/src/ocaml/typing/407_0/subst.ml
+index 9209147f..b2fbcb30 100644
+--- a/src/ocaml/typing/407_0/subst.ml
++++ b/src/ocaml/typing/407_0/subst.ml
+@@ -26,6 +26,8 @@ type type_replacement =
+ 
+ module PathMap = Path.Map
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: type_replacement PathMap.t;
+     modules: Path.t PathMap.t;
+@@ -131,7 +133,7 @@ let to_subst_by_type_function s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/408/btype.ml b/src/ocaml/typing/408/btype.ml
+index 4cb9aec1..c3e74a11 100644
+--- a/src/ocaml/typing/408/btype.ml
++++ b/src/ocaml/typing/408/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; scope = lowest_level; id = !new_id }
+diff --git a/src/ocaml/typing/408/ctype.ml b/src/ocaml/typing/408/ctype.ml
+index cb31c96e..57b64870 100644
+--- a/src/ocaml/typing/408/ctype.ml
++++ b/src/ocaml/typing/408/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -169,10 +171,10 @@ exception Cannot_apply
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/408/ident.ml b/src/ocaml/typing/408/ident.ml
+index 3a019170..931d13a8 100644
+--- a/src/ocaml/typing/408/ident.ml
++++ b/src/ocaml/typing/408/ident.ml
+@@ -13,6 +13,8 @@
+ (*                                                                        *)
+ (**************************************************************************)
+ 
++open Local_store.Compiler
++
+ let lowest_scope  = 0
+ let highest_scope = 100000000
+ 
+@@ -26,8 +28,8 @@ type t =
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
+-let predefstamp = ref 0
++let currentstamp = s_ref 0
++let predefstamp = s_ref 0
+ 
+ let create_scoped ~scope s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/408/subst.ml b/src/ocaml/typing/408/subst.ml
+index 4c66114c..5359a4be 100644
+--- a/src/ocaml/typing/408/subst.ml
++++ b/src/ocaml/typing/408/subst.ml
+@@ -24,6 +24,8 @@ type type_replacement =
+   | Path of Path.t
+   | Type_function of { params : type_expr list; body : type_expr }
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: type_replacement Path.Map.t;
+     modules: Path.t Path.Map.t;
+@@ -129,7 +131,7 @@ let to_subst_by_type_function s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/409/btype.ml b/src/ocaml/typing/409/btype.ml
+index 4cb9aec1..c3e74a11 100644
+--- a/src/ocaml/typing/409/btype.ml
++++ b/src/ocaml/typing/409/btype.ml
+@@ -19,6 +19,8 @@ open Misc
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -41,7 +43,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; scope = lowest_level; id = !new_id }
+diff --git a/src/ocaml/typing/409/ctype.ml b/src/ocaml/typing/409/ctype.ml
+index 9d6389b3..dd4d4b3a 100644
+--- a/src/ocaml/typing/409/ctype.ml
++++ b/src/ocaml/typing/409/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -180,10 +182,10 @@ exception Cannot_apply
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/409/ident.ml b/src/ocaml/typing/409/ident.ml
+index 7407b37b..ddf98c74 100644
+--- a/src/ocaml/typing/409/ident.ml
++++ b/src/ocaml/typing/409/ident.ml
+@@ -13,6 +13,8 @@
+ (*                                                                        *)
+ (**************************************************************************)
+ 
++open Local_store.Compiler
++
+ let lowest_scope  = 0
+ let highest_scope = 100000000
+ 
+@@ -26,8 +28,8 @@ type t =
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
+-let predefstamp = ref 0
++let currentstamp = s_ref 0
++let predefstamp = s_ref 0
+ 
+ let create_scoped ~scope s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/409/subst.ml b/src/ocaml/typing/409/subst.ml
+index a5655fe3..e883641b 100644
+--- a/src/ocaml/typing/409/subst.ml
++++ b/src/ocaml/typing/409/subst.ml
+@@ -24,6 +24,8 @@ type type_replacement =
+   | Path of Path.t
+   | Type_function of { params : type_expr list; body : type_expr }
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: type_replacement Path.Map.t;
+     modules: Path.t Path.Map.t;
+@@ -129,7 +131,7 @@ let to_subst_by_type_function s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/410/btype.ml b/src/ocaml/typing/410/btype.ml
+index 29646a1e..601a5f4e 100644
+--- a/src/ocaml/typing/410/btype.ml
++++ b/src/ocaml/typing/410/btype.ml
+@@ -18,6 +18,8 @@
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -40,7 +42,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; scope = lowest_level; id = !new_id }
+diff --git a/src/ocaml/typing/410/ctype.ml b/src/ocaml/typing/410/ctype.ml
+index e148a3da..b38e3c81 100644
+--- a/src/ocaml/typing/410/ctype.ml
++++ b/src/ocaml/typing/410/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -187,10 +189,10 @@ exception Cannot_apply
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/410/ident.ml b/src/ocaml/typing/410/ident.ml
+index 7407b37b..ddf98c74 100644
+--- a/src/ocaml/typing/410/ident.ml
++++ b/src/ocaml/typing/410/ident.ml
+@@ -13,6 +13,8 @@
+ (*                                                                        *)
+ (**************************************************************************)
+ 
++open Local_store.Compiler
++
+ let lowest_scope  = 0
+ let highest_scope = 100000000
+ 
+@@ -26,8 +28,8 @@ type t =
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
+-let predefstamp = ref 0
++let currentstamp = s_ref 0
++let predefstamp = s_ref 0
+ 
+ let create_scoped ~scope s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/410/subst.ml b/src/ocaml/typing/410/subst.ml
+index e2ffe785..d1bd98ad 100644
+--- a/src/ocaml/typing/410/subst.ml
++++ b/src/ocaml/typing/410/subst.ml
+@@ -24,6 +24,8 @@ type type_replacement =
+   | Path of Path.t
+   | Type_function of { params : type_expr list; body : type_expr }
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: type_replacement Path.Map.t;
+     modules: Path.t Path.Map.t;
+@@ -129,7 +131,7 @@ let to_subst_by_type_function s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+diff --git a/src/ocaml/typing/411/btype.ml b/src/ocaml/typing/411/btype.ml
+index cf1aaa53..82093b05 100644
+--- a/src/ocaml/typing/411/btype.ml
++++ b/src/ocaml/typing/411/btype.ml
+@@ -18,6 +18,8 @@
+ open Asttypes
+ open Types
+ 
++open Local_store.Compiler
++
+ (**** Sets, maps and hashtables of types ****)
+ 
+ module TypeSet = Set.Make(TypeOps)
+@@ -40,7 +42,7 @@ let pivot_level = 2 * lowest_level - 1
+ 
+ (**** Some type creators ****)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ 
+ let newty2 level desc  =
+   incr new_id; { desc; level; scope = lowest_level; id = !new_id }
+diff --git a/src/ocaml/typing/411/ctype.ml b/src/ocaml/typing/411/ctype.ml
+index fbab3d54..a9a15d87 100644
+--- a/src/ocaml/typing/411/ctype.ml
++++ b/src/ocaml/typing/411/ctype.ml
+@@ -20,6 +20,8 @@ open Asttypes
+ open Types
+ open Btype
+ 
++open Local_store.Compiler
++
+ (*
+    Type manipulation after type inference
+    ======================================
+@@ -187,10 +189,10 @@ exception Cannot_apply
+ 
+ (**** Type level management ****)
+ 
+-let current_level = ref 0
+-let nongen_level = ref 0
+-let global_level = ref 1
+-let saved_level = ref []
++let current_level = s_ref 0
++let nongen_level = s_ref 0
++let global_level = s_ref 1
++let saved_level = s_ref []
+ 
+ type levels =
+     { current_level: int; nongen_level: int; global_level: int;
+diff --git a/src/ocaml/typing/411/ident.ml b/src/ocaml/typing/411/ident.ml
+index f3b255ad..6b14a756 100644
+--- a/src/ocaml/typing/411/ident.ml
++++ b/src/ocaml/typing/411/ident.ml
+@@ -13,6 +13,8 @@
+ (*                                                                        *)
+ (**************************************************************************)
+ 
++open Local_store.Compiler
++
+ let lowest_scope  = 0
+ let highest_scope = 100000000
+ 
+@@ -26,8 +28,8 @@ type t =
+ 
+ (* A stamp of 0 denotes a persistent identifier *)
+ 
+-let currentstamp = ref 0
+-let predefstamp = ref 0
++let currentstamp = s_ref 0
++let predefstamp = s_ref 0
+ 
+ let create_scoped ~scope s =
+   incr currentstamp;
+diff --git a/src/ocaml/typing/411/subst.ml b/src/ocaml/typing/411/subst.ml
+index 887e1196..358c0084 100644
+--- a/src/ocaml/typing/411/subst.ml
++++ b/src/ocaml/typing/411/subst.ml
+@@ -24,6 +24,8 @@ type type_replacement =
+   | Path of Path.t
+   | Type_function of { params : type_expr list; body : type_expr }
+ 
++open Local_store.Compiler
++
+ type t =
+   { types: type_replacement Path.Map.t;
+     modules: Path.t Path.Map.t;
+@@ -129,7 +131,7 @@ let to_subst_by_type_function s p =
+ 
+ (* Special type ids for saved signatures *)
+ 
+-let new_id = ref (-1)
++let new_id = s_ref (-1)
+ let reset_for_saving () = new_id := -1
+ 
+ let newpersty desc =
+-- 
+2.28.0
+
